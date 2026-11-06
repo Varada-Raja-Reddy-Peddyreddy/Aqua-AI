@@ -7,7 +7,10 @@ app = Flask(__name__)
 CORS(app)
 
 # Load the saved model bundle once, when the server starts
-bundle = joblib.load(r"E:\algal bloom prediction\archive\bloom_model.pkl")
+from pathlib import Path
+
+MODEL_PATH = Path(__file__).resolve().parent / "bloom_model.pkl"
+bundle = joblib.load(MODEL_PATH)
 model = bundle["model"]
 feature_cols = bundle["feature_cols"]
 median_fill = bundle["median_fill_values"]
