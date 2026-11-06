@@ -1,1 +1,630 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HAB Watch — Seven-Day Bloom Risk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root {
+    --bg: #0B1F24;
+    --panel: #12333B;
+    --panel-2: #163E47;
+    --line: #24525C;
+    --text: #E7F3F1;
+    --text-dim: #9FC2C0;
+    --risk: #C1443C;
+    --risk-glow: rgba(193, 68, 60, 0.25);
+    --safe: #4FA98A;
+    --safe-glow: rgba(79, 169, 138, 0.25);
+    --accent: #E3B23C;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    padding: 32px 24px 64px;
+  }
+
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  header .mark {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--safe);
+    box-shadow: 0 0 0 4px var(--safe-glow);
+    flex-shrink: 0;
+    position: relative;
+    top: -2px;
+  }
+
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  header p {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 14px;
+    max-width: 56ch;
+    line-height: 1.5;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .console {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 24px 24px;
+  }
+
+  .section {
+    padding: 20px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .section:last-of-type { border-bottom: none; }
+
+  .section-label {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    margin: 0 0 14px;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .section-hint {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+
+  #map {
+    height: 280px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    margin-bottom: 16px;
+  }
+
+  .leaflet-popup-content-wrapper {
+    background: var(--panel-2);
+    color: var(--text);
+    border-radius: 4px;
+  }
+  .leaflet-popup-tip { background: var(--panel-2); }
+  .leaflet-popup-content {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .leaflet-popup-content b { color: var(--accent); }
+  .popup-btn {
+    margin-top: 8px;
+    display: inline-block;
+    background: var(--accent);
+    color: #17130A;
+    border: none;
+    border-radius: 3px;
+    padding: 6px 10px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .station-note {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin: 0 0 16px;
+    line-height: 1.5;
+  }
+  .station-note strong { color: var(--text); }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+  }
+
+  label {
+    display: block;
+  }
+
+  .field-label {
+    display: block;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    padding: 9px 10px;
+    transition: border-color 0.15s ease, background 0.3s ease;
+  }
+
+  input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  input.autofilled {
+    background: #1C3A33;
+    border-color: var(--safe);
+  }
+
+  input::placeholder {
+    color: #4B6B70;
+  }
+
+  .run-btn {
+    width: 100%;
+    margin-top: 22px;
+    background: var(--accent);
+    color: #17130A;
+    border: none;
+    border-radius: 4px;
+    padding: 14px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.05s ease;
+  }
+  .run-btn:hover { filter: brightness(1.08); }
+  .run-btn:active { transform: scale(0.997); }
+  .run-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+  .readout {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 28px 24px;
+    position: sticky;
+    top: 24px;
+  }
+
+  .readout-label {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    margin: 0 0 20px;
+    font-weight: 600;
+  }
+
+  .gauge-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 8px;
+  }
+
+  .gauge-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 34px;
+    font-weight: 600;
+  }
+
+  .gauge-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    fill: var(--text-dim);
+  }
+
+  .verdict {
+    text-align: center;
+    margin-top: 4px;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .verdict.high { color: var(--risk); }
+  .verdict.low { color: var(--safe); }
+  .verdict.pending { color: var(--text-dim); font-weight: 500; }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 22px 0;
+  }
+
+  .note {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  .note strong { color: var(--text); font-weight: 600; }
+
+  .stat-line {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    padding: 6px 0;
+    color: var(--text-dim);
+  }
+  .stat-line span:last-child { color: var(--text); }
+
+  .status-msg {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 14px;
+    min-height: 18px;
+  }
+  .status-msg.error { color: var(--risk); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="mark" id="statusDot"></span>
+    <div>
+      <h1>HAB Watch</h1>
+      <p>Seven-day harmful algal bloom risk, estimated from a water sample and its recent local and regional history. Model trained on NOAA HABSOS <em>Karenia brevis</em> monitoring data.</p>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <div class="console">
+
+      <div class="section">
+        <p class="section-label">
+          LOCATION &amp; DATE
+          <span class="section-hint" id="stationCount">loading stations…</span>
+        </p>
+        <p class="station-note">Click a monitoring station on the map to load its <strong>known location and bloom history</strong>. You'll still enter today's fresh sample readings yourself below — those aren't available for any station until someone actually samples the water.</p>
+        <div id="map"></div>
+        <div class="field-row">
+          <label>
+            <span class="field-label">Latitude</span>
+            <input type="number" step="0.0001" id="latitude" placeholder="27.50">
+          </label>
+          <label>
+            <span class="field-label">Longitude</span>
+            <input type="number" step="0.0001" id="longitude" placeholder="-82.60">
+          </label>
+          <label>
+            <span class="field-label">Sample date</span>
+            <input type="date" id="sampleDate">
+          </label>
+        </div>
+      </div>
+
+      <div class="section">
+        <p class="section-label">TODAY'S SAMPLE</p>
+        <div class="field-row">
+          <label>
+            <span class="field-label">Cell count (cells/L)</span>
+            <input type="number" step="1" id="cellCount" placeholder="50000">
+          </label>
+          <label>
+            <span class="field-label">Severity (0–4)</span>
+            <input type="number" step="1" min="0" max="4" id="severity" placeholder="2">
+          </label>
+          <label>
+            <span class="field-label">Water temp (°C)</span>
+            <input type="number" step="0.1" id="waterTemp" placeholder="28.0">
+          </label>
+          <label>
+            <span class="field-label">Salinity (PSU)</span>
+            <input type="number" step="0.1" id="salinity" placeholder="32.0">
+          </label>
+          <label>
+            <span class="field-label">Sample depth (m)</span>
+            <input type="number" step="0.1" id="depth" placeholder="1.0">
+          </label>
+        </div>
+      </div>
+
+      <div class="section">
+        <p class="section-label">
+          RECENT LOCAL HISTORY
+          <span class="section-hint" id="historyAsOf"></span>
+        </p>
+        <div class="field-row">
+          <label>
+            <span class="field-label">7d max count</span>
+            <input type="number" step="1" id="h7max" placeholder="50000">
+          </label>
+          <label>
+            <span class="field-label">7d bloom fraction</span>
+            <input type="number" step="0.01" min="0" max="1" id="h7frac" placeholder="0.5">
+          </label>
+          <label>
+            <span class="field-label">30d max count</span>
+            <input type="number" step="1" id="h30max" placeholder="55000">
+          </label>
+          <label>
+            <span class="field-label">30d bloom fraction</span>
+            <input type="number" step="0.01" min="0" max="1" id="h30frac" placeholder="0.5">
+          </label>
+          <label>
+            <span class="field-label">90d max count</span>
+            <input type="number" step="1" id="h90max" placeholder="60000">
+          </label>
+          <label>
+            <span class="field-label">90d bloom fraction</span>
+            <input type="number" step="0.01" min="0" max="1" id="h90frac" placeholder="0.33">
+          </label>
+        </div>
+      </div>
+
+      <div class="section">
+        <p class="section-label">REGIONAL TREND</p>
+        <div class="field-row">
+          <label>
+            <span class="field-label">Regional 7d max</span>
+            <input type="number" step="1" id="r7max" placeholder="70000">
+          </label>
+          <label>
+            <span class="field-label">Regional 30d max</span>
+            <input type="number" step="1" id="r30max" placeholder="90000">
+          </label>
+          <label>
+            <span class="field-label">Regional 90d max</span>
+            <input type="number" step="1" id="r90max" placeholder="120000">
+          </label>
+        </div>
+      </div>
+
+      <button class="run-btn" id="runBtn">Run prediction</button>
+      <p class="status-msg" id="statusMsg"></p>
+
+    </div>
+
+    <div class="readout">
+      <p class="readout-label">SEVEN-DAY BLOOM RISK</p>
+
+      <div class="gauge-wrap">
+        <svg width="180" height="120" viewBox="0 0 180 110">
+          <path d="M 15 100 A 75 75 0 0 1 165 100" fill="none" stroke="#1D4750" stroke-width="14" stroke-linecap="round"/>
+          <path id="gaugeArc" d="M 15 100 A 75 75 0 0 1 165 100" fill="none" stroke="var(--safe)" stroke-width="14" stroke-linecap="round" stroke-dasharray="235.6" stroke-dashoffset="235.6" style="transition: stroke-dashoffset 0.6s ease, stroke 0.4s ease;"/>
+          <text x="90" y="88" text-anchor="middle" class="gauge-num" id="gaugeNum" fill="var(--text)">—</text>
+          <text x="90" y="106" text-anchor="middle" class="gauge-sub">PROBABILITY</text>
+        </svg>
+      </div>
+
+      <p class="verdict pending" id="verdictText">Awaiting sample data</p>
+
+      <hr class="divider">
+
+      <div class="stat-line"><span>Decision threshold</span><span id="thresholdVal">0.12</span></div>
+      <div class="stat-line"><span>Model</span><span>LightGBM</span></div>
+
+      <hr class="divider">
+
+      <p class="note">
+        On held-out 2022–2024 data, this model catches <strong>89% of real bloom onsets</strong> seven days ahead, at the cost of roughly <strong>1 in 4 alerts</strong> being a false alarm. That tradeoff favors catching blooms over avoiding false alerts — appropriate for a public health warning, not for a system that needs to be right every time it warns.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const API_URL = "http://127.0.0.1:5000/predict";
+  const statusDot = document.getElementById('statusDot');
+  const statusMsg = document.getElementById('statusMsg');
+
+  // Ping the backend on load to show connection status
+  fetch("http://127.0.0.1:5000/").then(r => {
+    if (r.ok) { statusDot.style.background = '#4FA98A'; }
+  }).catch(() => {
+    statusDot.style.background = '#C1443C';
+    statusMsg.textContent = "Backend not reachable — make sure app.py is running on port 5000.";
+    statusMsg.classList.add('error');
+  });
+
+  // ---- Map + station loading ----
+  const map = L.map('map', { scrollWheelZoom: false }).setView([27.5, -82.6], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 12
+  }).addTo(map);
+
+  function fillField(id, value) {
+    const el = document.getElementById(id);
+    el.value = value;
+    el.classList.add('autofilled');
+    setTimeout(() => el.classList.remove('autofilled'), 1200);
+  }
+
+  fetch('stations.json')
+    .then(r => {
+      if (!r.ok) throw new Error("stations.json not found");
+      return r.json();
+    })
+    .then(stations => {
+      document.getElementById('stationCount').textContent = stations.length + ' known stations';
+      stations.forEach(st => {
+        const marker = L.circleMarker([st.latitude, st.longitude], {
+          radius: 5,
+          color: '#E3B23C',
+          fillColor: '#E3B23C',
+          fillOpacity: 0.85,
+          weight: 1
+        }).addTo(map);
+
+        const popupHtml = `
+          <b>${st.location_description || 'Station ' + st.location_id}</b><br>
+          ${st.state || ''}<br>
+          Last known data: ${st.as_of_date}<br>
+          <button class="popup-btn" data-id="${st.location_id}">Use this station</button>
+        `;
+        marker.bindPopup(popupHtml);
+
+        marker.on('popupopen', () => {
+          const btn = document.querySelector(`.popup-btn[data-id="${st.location_id}"]`);
+          if (btn) {
+            btn.addEventListener('click', () => applyStation(st));
+          }
+        });
+      });
+    })
+    .catch(() => {
+      document.getElementById('stationCount').textContent = 'stations.json not found';
+    });
+
+  function applyStation(st) {
+    fillField('latitude', st.latitude);
+    fillField('longitude', st.longitude);
+    fillField('h7max', st.hist_7d_max_cell_count ?? '');
+    fillField('h7frac', st.hist_7d_bloom_fraction ?? '');
+    fillField('h30max', st.hist_30d_max_cell_count ?? '');
+    fillField('h30frac', st.hist_30d_bloom_fraction ?? '');
+    fillField('h90max', st.hist_90d_max_cell_count ?? '');
+    fillField('h90frac', st.hist_90d_bloom_fraction ?? '');
+    fillField('r7max', st.regional_7d_max_cell_count ?? '');
+    fillField('r30max', st.regional_30d_max_cell_count ?? '');
+    fillField('r90max', st.regional_90d_max_cell_count ?? '');
+    document.getElementById('historyAsOf').textContent = 'as of ' + st.as_of_date;
+    map.closePopup();
+  }
+
+  // ---- Prediction ----
+  function val(id) {
+    const v = document.getElementById(id).value;
+    return v === "" ? null : parseFloat(v);
+  }
+
+  document.getElementById('runBtn').addEventListener('click', async () => {
+    statusMsg.textContent = "";
+    statusMsg.classList.remove('error');
+
+    const dateStr = document.getElementById('sampleDate').value;
+    let year = null, month = null, dayOfYear = null, seasonSin = null, seasonCos = null;
+    if (dateStr) {
+      const d = new Date(dateStr + "T00:00:00");
+      year = d.getFullYear();
+      month = d.getMonth() + 1;
+      const start = new Date(year, 0, 0);
+      dayOfYear = Math.floor((d - start) / 86400000);
+      seasonSin = Math.sin((2 * Math.PI * dayOfYear) / 365);
+      seasonCos = Math.cos((2 * Math.PI * dayOfYear) / 365);
+    }
+
+    const cellCount = val('cellCount');
+    const waterTemp = val('waterTemp');
+    const salinity = val('salinity');
+
+    const payload = {
+      latitude: val('latitude'),
+      longitude: val('longitude'),
+      grid_latitude: val('latitude'),
+      grid_longitude: val('longitude'),
+      cell_count: cellCount,
+      current_severity: val('severity'),
+      current_log1p_cell_count: cellCount !== null ? Math.log1p(cellCount) : null,
+      water_temp_c: waterTemp,
+      salinity: salinity,
+      sample_depth_m: val('depth'),
+      water_temp_missing: waterTemp === null ? 1 : 0,
+      salinity_missing: salinity === null ? 1 : 0,
+      year: year, month: month, day_of_year: dayOfYear,
+      season_sin: seasonSin, season_cos: seasonCos,
+      hist_7d_max_cell_count: val('h7max'),
+      hist_7d_bloom_fraction: val('h7frac'),
+      hist_30d_max_cell_count: val('h30max'),
+      hist_30d_bloom_fraction: val('h30frac'),
+      hist_90d_max_cell_count: val('h90max'),
+      hist_90d_bloom_fraction: val('h90frac'),
+      regional_7d_max_cell_count: val('r7max'),
+      regional_30d_max_cell_count: val('r30max'),
+      regional_90d_max_cell_count: val('r90max')
+    };
+
+    const btn = document.getElementById('runBtn');
+    btn.disabled = true;
+    btn.textContent = "Running…";
+
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error("Server returned " + res.status);
+      const data = await res.json();
+      renderResult(data);
+    } catch (err) {
+      statusMsg.textContent = "Could not reach the backend. Is app.py running on port 5000?";
+      statusMsg.classList.add('error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Run prediction";
+    }
+  });
+
+  function renderResult(data) {
+    const prob = data.bloom_probability;
+    const pct = Math.round(prob * 100);
+    const arc = document.getElementById('gaugeArc');
+    const circumference = 235.6;
+    arc.style.strokeDashoffset = circumference - (circumference * prob);
+    arc.style.stroke = data.bloom_risk ? 'var(--risk)' : 'var(--safe)';
+
+    document.getElementById('gaugeNum').textContent = pct + "%";
+    document.getElementById('thresholdVal').textContent = data.threshold_used;
+
+    const verdict = document.getElementById('verdictText');
+    verdict.className = 'verdict ' + (data.bloom_risk ? 'high' : 'low');
+    verdict.textContent = data.bloom_risk
+      ? "Elevated bloom risk — flagged"
+      : "Low bloom risk — not flagged";
+  }
+</script>
+</body>
+</html>
