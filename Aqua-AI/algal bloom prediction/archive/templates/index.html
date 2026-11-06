@@ -455,12 +455,12 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  const API_URL = "http://127.0.0.1:5000/predict";
+  const API_URL = "/predict";
   const statusDot = document.getElementById('statusDot');
   const statusMsg = document.getElementById('statusMsg');
 
   // Ping the backend on load to show connection status
-  fetch("http://127.0.0.1:5000/").then(r => {
+  fetch("/").then(r => {
     if (r.ok) { statusDot.style.background = '#4FA98A'; }
   }).catch(() => {
     statusDot.style.background = '#C1443C';
